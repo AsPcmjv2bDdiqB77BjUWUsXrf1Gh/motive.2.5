@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Notion Gacha Widget</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Canvas Confetti for UR celebration -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+    
+    body {
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* Custom Animations & Effects */
+    .glow-ur {
+      box-shadow: 0 0 25px rgba(234, 179, 8, 0.6), inset 0 0 15px rgba(250, 204, 21, 0.4);
+      background: linear-gradient(135deg, rgba(254, 240, 138, 0.15) 0%, rgba(234, 179, 8, 0.25) 100%);
+      border: 2px solid #eab308;
+    }
+
+    .glow-ssr {
+      box-shadow: 0 0 20px rgba(168, 85, 247, 0.5);
+      background: linear-gradient(135deg, rgba(243, 232, 255, 0.15) 0%, rgba(168, 85, 247, 0.2) 100%);
+      border: 2px solid #a855f7;
+    }
+
+    .glow-sr {
+      box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+      background: linear-gradient(135deg, rgba(219, 234, 254, 0.15) 0%, rgba(59, 130, 246, 0.2) 100%);
+      border: 2px solid #3b82f6;
+    }
+
+    .glow-r {
+      box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);
+      background: linear-gradient(135deg, rgba(220, 252, 231, 0.15) 0%, rgba(34, 197, 94, 0.2) 100%);
+      border: 2px solid #22c55e;
+    }
+
+    .glow-n {
+      box-shadow: 0 0 5px rgba(156, 163, 175, 0.2);
+      background: rgba(243, 244, 246, 0.05);
+      border: 1px solid #9ca3af;
+    }
+
+    /* Shimmer Effect for Rainbow UR */
+    .rainbow-text {
+      background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #8b00ff);
+      background-size: 200% auto;
+      color: transparent;
+      -webkit-background-clip: text;
+      background-clip: text;
+      animation: rainbow 3s linear infinite;
+    }
+
+    @keyframes rainbow {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    /* Pulse Roll Animation */
+    @keyframes pulseCard {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.03); }
+      100% { transform: scale(1); }
+    }
+
+    .animate-roll {
+      animation: pulseCard 0.15s infinite;
+    }
+
+    /* Custom Scrollbar for Modal/History */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.05);
+      border-radius: 8px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(156, 163, 175, 0.4);
+      border-radius: 8px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(107, 114, 128, 0.6);
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between p-4 sm:p-6 overflow-x-hidden antialiased">
+
+  <!-- Header / Top Bar -->
+  <div class="flex justify-between items-center w-full max-w-md mx-auto mb-3">
+    <div class="flex items-center gap-2">
+      <div class="bg-indigo-600 text-white w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shadow-md">
+        <i class="fa-solid font-black fa-cube"></i>
+      </div>
+      <h1 class="font-bold text-lg tracking-wide text-slate-100">EQUIPMENT GACHA</h1>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="toggleModal('rates-modal')" class="text-xs px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md transition flex items-center gap-1 border border-slate-700">
+        <i class="fa-solid fa-list-ul"></i> 排出率
+      </button>
+      <button onclick="toggleModal('history-modal')" class="text-xs px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md transition flex items-center gap-1 border border-slate-700">
+        <i class="fa-solid fa-clock-rotate-left"></i> 履歴
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Display Card -->
+  <div class="w-full max-w-md mx-auto flex-1 flex flex-col justify-center my-2">
+    <!-- Result Card -->
+    <div id="result-card" class="glow-n relative bg-slate-800/80 backdrop-blur-md rounded-2xl p-6 text-center transition-all duration-300 flex flex-col items-center justify-center min-h-[220px]">
+      
+      <!-- Placeholder Status -->
+      <div id="status-idle" class="flex flex-col items-center justify-center space-y-3">
+        <div class="w-16 h-16 rounded-full bg-slate-700/50 flex items-center justify-center text-slate-400 text-2xl">
+          <i class="fa-solid fa-gem"></i>
+        </div>
+        <p class="text-slate-400 text-sm font-medium">ボタンを押してガチャを回そう！</p>
+      </div>
+
+      <!-- Animation Rolling Status -->
+      <div id="status-rolling" class="hidden flex-col items-center justify-center space-y-3">
+        <div class="w-16 h-16 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-3xl animate-spin">
+          <i class="fa-solid fa-compact-disc"></i>
+        </div>
+        <div id="rolling-rarity" class="font-extrabold text-xl tracking-wider text-indigo-400">DRAWING...</div>
+      </div>
+
+      <!-- Result Revealed Status -->
+      <div id="status-result" class="hidden flex-col items-center justify-center w-full">
+        <!-- Rarity Badge -->
+        <span id="result-rarity-badge" class="px-3 py-1 rounded-full text-xs font-black tracking-widest uppercase mb-3 border">
+          UR
+        </span>
+        
+        <!-- Item Icon -->
+        <div id="result-icon-container" class="text-5xl my-2 text-yellow-400">
+          <i id="result-icon" class="fa-solid fa-wand-magic-sparkles"></i>
+        </div>
+
+        <!-- Item Name -->
+        <h2 id="result-name" class="text-xl sm:text-2xl font-bold mt-2 text-slate-100 tracking-wide text-center">
+          アイテム名
+        </h2>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Action Buttons -->
+  <div class="w-full max-w-md mx-auto mt-2 space-y-2">
+    <div class="grid grid-cols-2 gap-3">
+      <!-- 1 Pull Button -->
+      <button id="btn-pull-1" onclick="pullGacha(1)" class="w-full py-3.5 px-4 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 active:scale-95 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/30 transition duration-150 flex items-center justify-center gap-2">
+        <i class="fa-solid fa-dice-one"></i> 1回引く
+      </button>
+
+      <!-- 10 Pull Button -->
+      <button id="btn-pull-10" onclick="pullGacha(10)" class="w-full py-3.5 px-4 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 active:scale-95 text-white font-bold rounded-xl shadow-lg shadow-amber-600/30 transition duration-150 flex items-center justify-center gap-2">
+        <i class="fa-solid fa-cubes"></i> 10連引く
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal: Rates & Master List -->
+  <div id="rates-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-md p-5 max-h-[85vh] flex flex-col shadow-2xl">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-700">
+        <h3 class="font-bold text-slate-100 text-base flex items-center gap-2">
+          <i class="fa-solid fa-circle-info text-indigo-400"></i> 排出確率・ラインナップ
+        </h3>
+        <button onclick="toggleModal('rates-modal')" class="text-slate-400 hover:text-white text-lg px-2">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      
+      <div class="overflow-y-auto my-3 space-y-4 pr-1 text-sm">
+        <!-- UR -->
+        <div class="bg-slate-900/60 p-3 rounded-xl border border-yellow-500/30">
+          <div class="flex justify-between items-center mb-1.5">
+            <span class="font-black text-yellow-400 text-xs px-2 py-0.5 bg-yellow-500/10 rounded border border-yellow-500/40">UR (5%)</span>
+          </div>
+          <ul class="text-xs text-slate-300 space-y-1 list-disc list-inside">
+            <li>寿司化</li>
+            <li>虹色に光る</li>
+          </ul>
+        </div>
+        <!-- SSR -->
+        <div class="bg-slate-900/60 p-3 rounded-xl border border-purple-500/30">
+          <div class="flex justify-between items-center mb-1.5">
+            <span class="font-black text-purple-400 text-xs px-2 py-0.5 bg-purple-500/10 rounded border border-purple-500/40">SSR (15%)</span>
+          </div>
+          <ul class="text-xs text-slate-300 space-y-1 list-disc list-inside">
+            <li>天使または悪魔</li>
+            <li>警察または囚人</li>
+            <li>ゾンビ化</li>
+          </ul>
+        </div>
+        <!-- SR -->
+        <div class="bg-slate-900/60 p-3 rounded-xl border border-blue-500/30">
+          <div class="flex justify-between items-center mb-1.5">
+            <span class="font-black text-blue-400 text-xs px-2 py-0.5 bg-blue-500/10 rounded border border-blue-500/40">SR (25%)</span>
+          </div>
+          <ul class="text-xs text-slate-300 space-y-1 list-disc list-inside">
+            <li>狼男・狼女</li>
+            <li>猫になっちゃったんだよな君は</li>
+            <li>海賊衣装</li>
+            <li>サーカス衣装</li>
+          </ul>
+        </div>
+        <!-- R -->
+        <div class="bg-slate-900/60 p-3 rounded-xl border border-green-500/30">
+          <div class="flex justify-between items-center mb-1.5">
+            <span class="font-black text-green-400 text-xs px-2 py-0.5 bg-green-500/10 rounded border border-green-500/40">R (35%)</span>
+          </div>
+          <ul class="text-xs text-slate-300 space-y-1 list-disc list-inside">
+            <li>先天性性転換</li>
+            <li>後天性性転換</li>
+            <li>メイド服</li>
+            <li>チャイナ服</li>
+          </ul>
+        </div>
+        <!-- N -->
+        <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-600/30">
+          <div class="flex justify-between items-center mb-1.5">
+            <span class="font-black text-slate-400 text-xs px-2 py-0.5 bg-slate-500/10 rounded border border-slate-500/40">N (20%)</span>
+          </div>
+          <ul class="text-xs text-slate-300 space-y-1 list-disc list-inside">
+            <li>頭上に飴の雨が降る</li>
+            <li>コンニャクが顔面に！</li>
+            <li>部屋の内装虹色に…</li>
+            <li>5・7・5でしか喋れない</li>
+            <li>司書アルバイト1時間</li>
+          </ul>
+        </div>
+      </div>
+
+      <button onclick="toggleModal('rates-modal')" class="w-full py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl font-semibold text-xs transition">
+        閉じる
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal: History -->
+  <div id="history-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-md p-5 max-h-[85vh] flex flex-col shadow-2xl">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-700">
+        <h3 class="font-bold text-slate-100 text-base flex items-center gap-2">
+          <i class="fa-solid fa-clock-rotate-left text-indigo-400"></i> ガチャ獲得履歴
+        </h3>
+        <button onclick="toggleModal('history-modal')" class="text-slate-400 hover:text-white text-lg px-2">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      
+      <div id="history-list" class="overflow-y-auto my-3 space-y-2 pr-1 text-sm flex-1">
+        <p class="text-center text-slate-500 text-xs py-8">まだ履歴がありません</p>
+      </div>
+
+      <div class="flex gap-2 pt-2 border-t border-slate-700">
+        <button onclick="clearHistory()" class="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl font-semibold text-xs transition flex items-center gap-1 border border-rose-500/20">
+          <i class="fa-solid fa-trash-can"></i> クリア
+        </button>
+        <button onclick="toggleModal('history-modal')" class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl font-semibold text-xs transition">
+          閉じる
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: 10 Pull Results -->
+  <div id="multi-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-md p-5 flex flex-col shadow-2xl">
+      <h3 class="font-bold text-slate-100 text-center text-lg mb-4 flex items-center justify-center gap-2">
+        <i class="fa-solid fa-sparkles text-amber-400"></i> 10連ガチャ結果
+      </h3>
+      
+      <div id="multi-results-grid" class="grid grid-cols-2 gap-2 max-h-[60vh] overflow-y-auto pr-1 mb-4">
+        <!-- 10 result cards dynamically inserted -->
+      </div>
+
+      <button onclick="toggleModal('multi-modal')" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg transition">
+        OK
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // Gacha Master Data
+    const GACHA_ITEMS = [
+      // UR (5%)
+      { name: "寿司化", rarity: "UR", rate: 2.5, icon: "fa-crown", color: "text-yellow-400" },
+      { name: "虹色に光る", rarity: "UR", rate: 2.5, icon: "fa-book-skull", color: "text-yellow-400" },
+
+      // SSR (15%)
+      { name: "天使または悪魔", rarity: "SSR", rate: 5.0, icon: "fa-feather-pointed", color: "text-purple-400" },
+      { name: "警察または囚人", rarity: "SSR", rate: 5.0, icon: "fa-bow-arrow", color: "text-purple-400" },
+      { name: "ゾンビ化", rarity: "SSR", rate: 5.0, icon: "fa-ankh", color: "text-purple-400" },
+
+      // SR (25%)
+      { name: "狼男・狼女", rarity: "SR", rate: 6.25, icon: "fa-shield-halved", color: "text-blue-400" },
+      { name: "猫になっちゃったんだよな君は", rarity: "SR", rate: 6.25, icon: "fa-mortar-pestle", color: "text-blue-400" },
+      { name: "海賊衣装", rarity: "SR", rate: 6.25, icon: "fa-shoe-prints", color: "text-blue-400" },
+      { name: "サーカス衣装", rarity: "SR", rate: 6.25, icon: "fa-ring", color: "text-blue-400" },
+
+      // R (35%)
+      { name: "先天性性転換", rarity: "R", rate: 8.75, icon: "fa-hand-fist", color: "text-green-400" },
+      { name: "後天性性転換", rarity: "R", rate: 8.75, icon: "fa-shield", color: "text-green-400" },
+      { name: "メイド服または執事服", rarity: "R", rate: 8.75, icon: "fa-flask-vial", color: "text-green-400" },
+      { name: "チャイナ服", rarity: "R", rate: 8.75, icon: "fa-vial", color: "text-green-400" },
+
+      // N (20%)
+      { name: "頭上に飴の雨が降る", rarity: "N", rate: 10.0, icon: "fa-wand-sparkles", color: "text-slate-400" },
+      { name: "コンニャクが顔面に！", rarity: "N", rate: 10.0, icon: "fa-shirt", color: "text-slate-400" },
+      { name: "部屋の内装虹色に…", rarity: "N", rate: 10.0, icon: "fa-wand-sparkles", color: "text-slate-400" },
+      { name: "5・7・5でしか喋れない", rarity: "N", rate: 10.0, icon: "fa-shirt", color: "text-slate-400" },
+      { name: "司書アルバイト1時間", rarity: "N", rate: 10.0, icon: "fa-shirt", color: "text-slate-400" }
+    ];
+
+    // State Variables
+    let isRolling = false;
+    let history = [];
+
+    // Helper: Pick single item based on probabilities
+    function drawOne() {
+      const rand = Math.random() * 100;
+      let cumulative = 0;
+
+      for (const item of GACHA_ITEMS) {
+        cumulative += item.rate;
+        if (rand <= cumulative) {
+          return item;
+        }
+      }
+      return GACHA_ITEMS[GACHA_ITEMS.length - 1]; // Fallback
+    }
+
+    // Modal Control
+    function toggleModal(modalId) {
+      const modal = document.getElementById(modalId);
+      if (modal) {
+        modal.classList.toggle('hidden');
+      }
+    }
+
+    // Update History UI
+    function addHistory(items) {
+      const historyList = document.getElementById('history-list');
+      items.forEach(item => {
+        history.unshift({ ...item, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) });
+      });
+
+      if (history.length > 50) history = history.slice(0, 50); // Keep last 50
+
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const historyList = document.getElementById('history-list');
+      if (history.length === 0) {
+        historyList.innerHTML = '<p class="text-center text-slate-500 text-xs py-8">まだ履歴がありません</p>';
+        return;
+      }
+
+      historyList.innerHTML = history.map(item => {
+        let badgeStyle = "bg-slate-700 text-slate-300";
+        if (item.rarity === 'UR') badgeStyle = "bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 font-bold";
+        if (item.rarity === 'SSR') badgeStyle = "bg-purple-500/20 text-purple-400 border border-purple-500/40 font-bold";
+        if (item.rarity === 'SR') badgeStyle = "bg-blue-500/20 text-blue-400 border border-blue-500/40";
+        if (item.rarity === 'R') badgeStyle = "bg-green-500/20 text-green-400 border border-green-500/40";
+
+        return `
+          <div class="flex items-center justify-between p-2.5 bg-slate-900/60 rounded-xl border border-slate-700/50">
+            <div class="flex items-center gap-2.5">
+              <span class="text-xs px-2 py-0.5 rounded ${badgeStyle}">${item.rarity}</span>
+              <span class="text-xs text-slate-200 font-medium">${item.name}</span>
+            </div>
+            <span class="text-[10px] text-slate-500">${item.time}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function clearHistory() {
+      history = [];
+      renderHistory();
+    }
+
+    // Main Draw Function
+    function pullGacha(count = 1) {
+      if (isRolling) return;
+      isRolling = true;
+
+      // Disable buttons
+      document.getElementById('btn-pull-1').disabled = true;
+      document.getElementById('btn-pull-10').disabled = true;
+
+      // UI Switch to rolling
+      document.getElementById('status-idle').classList.add('hidden');
+      document.getElementById('status-result').classList.add('hidden');
+      document.getElementById('status-rolling').classList.remove('hidden');
+
+      const resultCard = document.getElementById('result-card');
+      resultCard.className = "glow-n relative bg-slate-800/80 backdrop-blur-md rounded-2xl p-6 text-center transition-all duration-300 flex flex-col items-center justify-center min-h-[220px] animate-roll";
+
+      // Rolling shuffle animation
+      let shuffleInterval = setInterval(() => {
+        const temp = GACHA_ITEMS[Math.floor(Math.random() * GACHA_ITEMS.length)];
+        document.getElementById('rolling-rarity').innerText = temp.rarity;
+      }, 80);
+
+      setTimeout(() => {
+        clearInterval(shuffleInterval);
+        resultCard.classList.remove('animate-roll');
+
+        if (count === 1) {
+          const item = drawOne();
+          displaySingleResult(item);
+          addHistory([item]);
+        } else {
+          const items = Array.from({ length: 10 }, () => drawOne());
+          displayMultiResult(items);
+          addHistory(items);
+        }
+
+        isRolling = false;
+        document.getElementById('btn-pull-1').disabled = false;
+        document.getElementById('btn-pull-10').disabled = false;
+      }, 1200);
+    }
+
+    // Display Single Result
+    function displaySingleResult(item) {
+      document.getElementById('status-rolling').classList.add('hidden');
+      document.getElementById('status-result').classList.remove('hidden');
+      document.getElementById('status-result').classList.add('flex');
+
+      const card = document.getElementById('result-card');
+      const badge = document.getElementById('result-rarity-badge');
+      const icon = document.getElementById('result-icon');
+      const name = document.getElementById('result-name');
+
+      // Reset styles
+      card.className = "relative bg-slate-800/80 backdrop-blur-md rounded-2xl p-6 text-center transition-all duration-300 flex flex-col items-center justify-center min-h-[220px]";
+      name.className = "text-xl sm:text-2xl font-bold mt-2 text-slate-100 tracking-wide text-center";
+
+      // Icon & Name update
+      icon.className = `fa-solid ${item.icon}`;
+      name.innerText = item.name;
+      badge.innerText = item.rarity;
+
+      // Rarity Styling Rules
+      switch(item.rarity) {
+        case 'UR':
+          card.classList.add('glow-ur');
+          badge.className = "px-3 py-1 rounded-full text-xs font-black tracking-widest uppercase mb-3 bg-yellow-500 text-slate-950 border-yellow-300 shadow-lg shadow-yellow-500/50";
+          name.classList.add('rainbow-text');
+          document.getElementById('result-icon-container').className = "text-5xl my-2 text-yellow-400";
+          
+          // Confetti particle effect
+          confetti({
+            particleCount: 100,
+            spread: 70,
+            origin: { y: 0.6 }
+          });
+          break;
+        case 'SSR':
+          card.classList.add('glow-ssr');
+          badge.className = "px-3 py-1 rounded-full text-xs font-black tracking-widest uppercase mb-3 bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-500/30";
+          document.getElementById('result-icon-container').className = "text-5xl my-2 text-purple-400";
+          break;
+        case 'SR':
+          card.classList.add('glow-sr');
+          badge.className = "px-3 py-1 rounded-full text-xs font-black tracking-widest uppercase mb-3 bg-blue-600 text-white border-blue-400";
+          document.getElementById('result-icon-container').className = "text-5xl my-2 text-blue-400";
+          break;
+        case 'R':
+          card.classList.add('glow-r');
+          badge.className = "px-3 py-1 rounded-full text-xs font-black tracking-widest uppercase mb-3 bg-green-600 text-white border-green-400";
+          document.getElementById('result-icon-container').className = "text-5xl my-2 text-green-400";
+          break;
+        default: // N
+          card.classList.add('glow-n');
+          badge.className = "px-3 py-1 rounded-full text-xs font-black tracking-widest uppercase mb-3 bg-slate-700 text-slate-300 border-slate-500";
+          document.getElementById('result-icon-container').className = "text-5xl my-2 text-slate-400";
+      }
+    }
+
+    // Display Multi (10連) Result
+    function displayMultiResult(items) {
+      // Set single view back to last drawn or highest rarity
+      const highestRarityItem = [...items].sort((a,b) => {
+        const order = { UR: 5, SSR: 4, SR: 3, R: 2, N: 1 };
+        return order[b.rarity] - order[a.rarity];
+      })[0];
+      
+      displaySingleResult(highestRarityItem);
+
+      // Populate Grid
+      const grid = document.getElementById('multi-results-grid');
+      grid.innerHTML = items.map(item => {
+        let borderStyle = "border-slate-700 bg-slate-900/60";
+        let rarityTag = "bg-slate-700 text-slate-300";
+
+        if (item.rarity === 'UR') {
+          borderStyle = "border-yellow-500/60 bg-yellow-950/20";
+          rarityTag = "bg-yellow-500 text-slate-950 font-black";
+        } else if (item.rarity === 'SSR') {
+          borderStyle = "border-purple-500/60 bg-purple-950/20";
+          rarityTag = "bg-purple-600 text-white font-bold";
+        } else if (item.rarity === 'SR') {
+          borderStyle = "border-blue-500/60 bg-blue-950/20";
+          rarityTag = "bg-blue-600 text-white";
+        } else if (item.rarity === 'R') {
+          borderStyle = "border-green-500/60 bg-green-950/20";
+          rarityTag = "bg-green-600 text-white";
+        }
+
+        return `
+          <div class="p-3 rounded-xl border ${borderStyle} flex flex-col items-center justify-center text-center">
+            <span class="text-[10px] px-2 py-0.5 rounded ${rarityTag} mb-1">${item.rarity}</span>
+            <i class="fa-solid ${item.icon} text-2xl my-1 ${item.color}"></i>
+            <span class="text-xs font-medium text-slate-200 line-clamp-1">${item.name}</span>
+          </div>
+        `;
+      }).join('');
+
+      // Open Multi Modal
+      toggleModal('multi-modal');
+
+      // Trigger Confetti if UR pulled in 10-pull
+      if (items.some(i => i.rarity === 'UR')) {
+        confetti({
+          particleCount: 120,
+          spread: 80,
+          origin: { y: 0.5 }
+        });
+      }
+    }
+  </script>
+</body>
+</html>
